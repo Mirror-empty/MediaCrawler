@@ -407,6 +407,18 @@ class XiaoHongShuClient(AbstractApiClient):
             return {}
         return info.get('user').get('userPageData')
 
+    async def get_creator_info_by_userId(self, user_id: str) -> Dict:
+        """
+         获取用户个人信息
+         https://edith.xiaohongshu.com/api/sns/web/v1/user/otherinfo?target_user_id=5c95f920000000001003acff
+        """
+        uri = f"/api/sns/web/v1/user/otherinfo"
+        params = {
+            "target_user_id": user_id
+        }
+
+        return await self.Browerget(uri,params)
+
     async def get_notes_by_creator(
             self, creator: str,
             cursor: str,

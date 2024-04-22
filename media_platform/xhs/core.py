@@ -145,7 +145,7 @@ class XiaoHongShuCrawler(AbstractCrawler):
         utils.logger.info("[XiaoHongShuCrawler.get_creators_and_notes] Begin get xiaohongshu creators")
         for user_id in config.XHS_CREATOR_ID_LIST:
             # get creator detail info from web html content
-            createor_info: Dict = await self.xhs_client.get_creator_info(user_id=user_id)
+            createor_info: Dict = await self.xhs_client.get_creator_info_by_userId(user_id=user_id)
             if createor_info:
                 await xhs_store.save_creator(user_id, creator=createor_info)
 

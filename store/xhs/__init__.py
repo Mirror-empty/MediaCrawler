@@ -94,7 +94,7 @@ async def update_xhs_note_comment(note_id: str, comment_item: Dict):
 
 
 async def save_creator(user_id: str, creator: Dict):
-    user_info = creator.get('basicInfo', {})
+    user_info = creator.get('basic_info', {})
 
     follows = 0
     fans = 0
