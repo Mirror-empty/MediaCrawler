@@ -14,7 +14,8 @@ from store import xhs as xhs_store
 from tools import utils
 from var import crawler_type_var
 
-from .client import XiaoHongShuClient
+from .BrowerClient import XiaoHongShuClient
+#from .client import XiaoHongShuClient
 from .exception import DataFetchError
 from .field import SearchSortType
 from .login import XiaoHongShuLogin
@@ -27,17 +28,19 @@ class XiaoHongShuCrawler(AbstractCrawler):
     context_page: Page
     xhs_client: XiaoHongShuClient
     browser_context: BrowserContext
+    account: str
 
     def __init__(self) -> None:
         self.index_url = "https://www.xiaohongshu.com"
         self.user_agent = utils.get_user_agent()
 
-    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str) -> None:
+    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str, account: str) -> None:
         self.platform = platform
         self.login_type = login_type
         self.crawler_type = crawler_type
         self.start_page = start_page
         self.keyword = keyword
+        self.account = account
 
     async def start(self) -> None:
         playwright_proxy_format, httpx_proxy_format = None, None

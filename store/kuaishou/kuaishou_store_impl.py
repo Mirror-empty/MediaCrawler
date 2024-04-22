@@ -82,6 +82,7 @@ class KuaishouDbStoreImplement(AbstractStore):
 
         """
 
+
         from .kuaishou_store_sql import (add_new_content,
                                          query_content_by_content_id,
                                          update_content_by_content_id)

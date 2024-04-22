@@ -15,7 +15,6 @@ from .exception import DataFetchError
 from .graphql import KuaiShouGraphQL
 
 
-
 class KuaiShouClient(AbstractApiClient):
     def __init__(
             self,
@@ -60,6 +59,31 @@ class KuaiShouClient(AbstractApiClient):
         return await self.request(method="POST", url=f"{self._host}{uri}",
                                   data=json_str, headers=self.headers)
 
+    async def Browerpost(self, uri: str, data: dict) -> Dict:
+
+        uri = f"{self._host}{uri}"
+        fetch_request = {
+            "method": "POST",
+            "headers": self.headers,
+            "body": json.dumps(data)
+        }
+
+        data = await self.playwright_page.evaluate(
+            """ ([fetchRequest,uri]) => {
+                return (async () => {
+                  const response = await fetch(uri, fetchRequest);
+                  return response.ok ? await response.json() : null;
+                })();   
+            }""",
+            [fetch_request, uri]
+        )
+
+        if data is None:
+            raise DataFetchError(data)
+        else:
+            return data.get("data", {})
+
+
     async def pong(self) -> bool:
         """get a note to check if login state is ok"""
         utils.logger.info("[KuaiShouClient.pong] Begin pong kuaishou...")
@@ -80,10 +104,12 @@ class KuaiShouClient(AbstractApiClient):
             ping_flag = False
         return ping_flag
 
+
     async def update_cookies(self, browser_context: BrowserContext):
         cookie_str, cookie_dict = utils.convert_cookies(await browser_context.cookies())
         self.headers["Cookie"] = cookie_str
         self.cookie_dict = cookie_dict
+
 
     async def search_info_by_keyword(self, keyword: str, pcursor: str):
         """
@@ -102,7 +128,8 @@ class KuaiShouClient(AbstractApiClient):
             "query": self.graphql.get("search_query")
         }
 
-        return await self.post("", post_data)
+        return await self.Browerpost("", post_data)
+
 
     async def get_video_info(self, photo_id: str) -> Dict:
         """
@@ -120,6 +147,7 @@ class KuaiShouClient(AbstractApiClient):
         }
         return await self.post("", post_data)
 
+
     async def get_video_comments(self, photo_id: str, pcursor: str = "") -> Dict:
         """get video comments
         :param photo_id: photo id you want to fetch
@@ -136,22 +164,8 @@ class KuaiShouClient(AbstractApiClient):
 
         }
 
-        # comments = await self.browser_context.request.post(
-        #     url=self._host,
-        #     data=post_data
-        # )
-        # print("comments.body", await comments.body())
-        # ss= await comments.body()
-        # # 将字节字符串解码为普通字符串
-        # json_string = ss.decode('utf-8')
-        #
-        # # 使用 json.loads() 解析 JSON 字符串并转换为 Python 字典
-        # json_data = json.loads(json_string)
-        #
-        # # 打印结果
-        # print(json_data)
-        # print("comments.post", ss)
-        return await self.post("", post_data)
+        return await self.Browerpost("", post_data)
+
 
     async def get_video_sub_comments(self, photo_id: str, pcursor: str = "", rootCommentId: str = "") -> Dict:
         """get video comments
@@ -171,6 +185,7 @@ class KuaiShouClient(AbstractApiClient):
 
         }
         return await self.post("", post_data)
+
 
     async def get_video_all_comments(self, photo_id: str, crawl_interval: float = 1.0, is_fetch_sub_comments=False,
                                      callback: Optional[Callable] = None):
@@ -205,6 +220,7 @@ class KuaiShouClient(AbstractApiClient):
             result.extend(sub_comments)
         return result
 
+
     async def get_comments_all_sub_comments(self, photo_id: str, comments: List[Dict], crawl_interval: float = 1.0,
                                             callback: Optional[Callable] = None) -> List[Dict]:
         """
@@ -231,14 +247,14 @@ class KuaiShouClient(AbstractApiClient):
             subCommentsPcursor = comment.get("subCommentsPcursor")
             if subCommentsPcursor is None:
                 utils.logger.info(
-                f"[KuaiShouClient.get_comments_all_sub_comments] No 'comments' key found in continuecontinue: {comment}")
+                    f"[KuaiShouClient.get_comments_all_sub_comments] No 'comments' key found in continuecontinue: {comment}")
                 continue
 
             subComments = comment.get("subComments")
 
             if subComments and callback:
                 utils.logger.info(
-                f"[KuaiShouClient.get_comments_all_sub_comments] No 'comments' key found in subCommentssubCommentssubCommentssubComments: {subComments}")
+                    f"[KuaiShouClient.get_comments_all_sub_comments] No 'comments' key found in subCommentssubCommentssubCommentssubComments: {subComments}")
                 await callback(photo_id, subComments)
 
             while subCommentsPcursor:

@@ -15,7 +15,8 @@ from store import kuaishou as kuaishou_store
 from tools import utils
 from var import comment_tasks_var, crawler_type_var
 
-from .client import KuaiShouClient
+#from .client import KuaiShouClient
+from .browerClent import KuaiShouClient
 from .exception import DataFetchError
 from .login import KuaishouLogin
 
@@ -27,17 +28,20 @@ class KuaishouCrawler(AbstractCrawler):
     context_page: Page
     ks_client: KuaiShouClient
     browser_context: BrowserContext
+    account: str
 
     def __init__(self):
         self.index_url = "https://www.kuaishou.com"
         self.user_agent = utils.get_user_agent()
 
-    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str):
+    def init_config(self, platform: str, login_type: str, crawler_type: str, start_page: int, keyword: str,
+                    account: str):
         self.platform = platform
         self.login_type = login_type
         self.crawler_type = crawler_type
         self.start_page = start_page
         self.keyword = keyword
+        self.account = account
 
     async def start(self):
         playwright_proxy_format, httpx_proxy_format = None, None
@@ -57,6 +61,12 @@ class KuaishouCrawler(AbstractCrawler):
             )
             # stealth.min.js is a js script to prevent the website from detecting the crawler.
             await self.browser_context.add_init_script(path="libs/stealth.min.js")
+            api_request_context = self.browser_context.request
+            data = {
+                "title": "Book Title",
+                "body": "John Doe",
+            }
+
             self.context_page = await self.browser_context.new_page()
             await self.context_page.goto(f"{self.index_url}?isHome=1")
 
@@ -99,7 +109,7 @@ class KuaishouCrawler(AbstractCrawler):
                     utils.logger.info(f"[KuaishouCrawler.search] Skip page: {page}")
                     page += 1
                     continue
-                
+
                 video_id_list: List[str] = []
                 videos_res = await self.ks_client.search_info_by_keyword(
                     keyword=keyword,
@@ -139,13 +149,15 @@ class KuaishouCrawler(AbstractCrawler):
         async with semaphore:
             try:
                 result = await self.ks_client.get_video_info(video_id)
-                utils.logger.info(f"[KuaishouCrawler.get_video_info_task] Get video_id:{video_id} info result: {result} ...")
+                utils.logger.info(
+                    f"[KuaishouCrawler.get_video_info_task] Get video_id:{video_id} info result: {result} ...")
                 return result.get("visionVideoDetail")
             except DataFetchError as ex:
                 utils.logger.error(f"[KuaishouCrawler.get_video_info_task] Get video detail error: {ex}")
                 return None
             except KeyError as ex:
-                utils.logger.error(f"[KuaishouCrawler.get_video_info_task] have not fund note detail video_id:{video_id}, err: {ex}")
+                utils.logger.error(
+                    f"[KuaishouCrawler.get_video_info_task] have not fund note detail video_id:{video_id}, err: {ex}")
                 return None
 
     async def batch_get_video_comments(self, video_id_list: List[str]):
@@ -161,6 +173,7 @@ class KuaishouCrawler(AbstractCrawler):
         utils.logger.info(f"[KuaishouCrawler.batch_get_video_comments] video ids:{video_id_list}")
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list: List[Task] = []
+
         for video_id in video_id_list:
             task = asyncio.create_task(self.get_comments(video_id, semaphore), name=video_id)
             task_list.append(task)
@@ -181,6 +194,7 @@ class KuaishouCrawler(AbstractCrawler):
                 await self.ks_client.get_video_all_comments(
                     photo_id=video_id,
                     crawl_interval=random.random(),
+                    is_fetch_sub_comments=config.ENABLE_GET_SUB_COMMENTS,
                     callback=kuaishou_store.batch_update_ks_video_comments
                 )
             except DataFetchError as ex:
@@ -211,7 +225,7 @@ class KuaishouCrawler(AbstractCrawler):
 
     async def create_ks_client(self, httpx_proxy: Optional[str]) -> KuaiShouClient:
         """Create xhs client"""
-        utils.logger.info("[KuaishouCrawler.create_ks_client] Begin create kuaishou API client ...")
+        utils.logger.info(f"[KuaishouCrawler.create_ks_client] Begin create kuaishou API client ...{httpx_proxy}")
         cookie_str, cookie_dict = utils.convert_cookies(await self.browser_context.cookies())
         xhs_client_obj = KuaiShouClient(
             proxies=httpx_proxy,
@@ -224,6 +238,7 @@ class KuaishouCrawler(AbstractCrawler):
             },
             playwright_page=self.context_page,
             cookie_dict=cookie_dict,
+            browser_context=self.browser_context
         )
         return xhs_client_obj
 
@@ -237,8 +252,9 @@ class KuaishouCrawler(AbstractCrawler):
         """Launch browser and create browser context"""
         utils.logger.info("[KuaishouCrawler.launch_browser] Begin create browser context ...")
         if config.SAVE_LOGIN_STATE:
-            user_data_dir = os.path.join(os.getcwd(), "browser_data",
-                                         config.USER_DATA_DIR % self.platform)  # type: ignore
+            user_data_dir = os.path.join(os.getcwd(), f"browser_data/{self.platform}",
+                                         config.USER_DATA_DIR % self.account)  # type: ignore
+            print("user_data_dir", user_data_dir)
             browser_context = await chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
                 accept_downloads=True,
@@ -260,3 +276,12 @@ class KuaishouCrawler(AbstractCrawler):
         """Close browser context"""
         await self.browser_context.close()
         utils.logger.info("[KuaishouCrawler.close] Browser context closed ...")
+
+    async def handle_page(page):
+        request_types = ["xhr", "fetch"]
+        # if page.resource_type in request_types:
+        #     if page.url.startswith("https://api.bilibili.com/x/v2/reply/wbi/main"):
+        #         print("requestrequest::: ", page)
+
+
+
